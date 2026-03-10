@@ -9,22 +9,61 @@
 #   pack3le : two 12-bit words packed into 3 bytes, little endian style
 #   ndpt    : ND812 binary paper tape dump
 #
-# ND812 paper tape assumptions used here:
-#   0x00..0x3f  data frames
-#   0x40..0x7f  record-start character with load address high 6 bits
-#   0x80        leader/trailer fill
-#   0x84..0x87  field change character, low 2 bits are the field number
+# ND812 binary paper tape format used here:
 #
-# Record handling:
-#   - leading zero bytes are ignored
-#   - 0x80 leader/trailer bytes are ignored
-#   - a record starts at a byte in 0x40..0x7f
-#   - the next byte is the low 6 bits of the load address
-#   - subsequent 0x00..0x3f bytes are payload frames until the next control
-#   - the last complete 12-bit payload word is treated as the checksum word
-#   - checksum test is done over:
-#         load_address + all payload words
-#     modulo 4096
+#   Leader/trailer:
+#       0x80 bytes repeated. These are ignored.
+#
+#   Field change:
+#       0x84..0x87
+#       low two bits select memory field.
+#       Field change characters are not included in the checksum.
+#
+#   Record structure:
+#
+#       leader/trailer
+#       field change
+#       origin address
+#       payload
+#       checksum word
+#       leader/trailer
+#
+#   Origin address:
+#       two bytes
+#       first byte has 0x40 set
+#       low 6 bits of first byte are the high 6 bits of the 12-bit origin
+#       second byte supplies the low 6 bits
+#
+#   Payload:
+#       ordinary 6-bit data frames, 0x00..0x3F
+#       pairs of frames form 12-bit words
+#
+#           word = (frame1 << 6) | frame2
+#
+#   Checksum word:
+#       two bytes
+#       first byte has 0x40 set
+#       low 6 bits of first byte are the high 6 bits of the 12-bit checksum
+#       second byte supplies the low 6 bits
+#
+#   Checksum comparison:
+#       Compute the checksum from:
+#
+#           origin + payload words
+#
+#       modulo 4096.
+#
+#       Exclude:
+#           field change characters
+#           tape checksum word itself
+#
+#       The checksum word stored on tape is expected to be:
+#
+#           (-computed_checksum) & 0xFFF
+#
+#       Equivalently:
+#
+#           (computed_checksum + tape_checksum_word) & 0xFFF == 0
 #
 
 import argparse
@@ -98,29 +137,23 @@ EXACT = {
     0o1007: "IONN",
     0o1010: "LJSW",
     0o1011: "LJST",
-
     0o1101: "LRF",
     0o1102: "LJFR",
     0o1103: "EXJR",
-
     0o1201: "LSFK",
     0o1202: "LKFS",
     0o1203: "EXKS",
     0o1204: "LKFJ",
-
     0o1301: "LRSFJK",
     0o1302: "LJKFRS",
     0o1303: "EXJRKS",
     0o1374: "EXJK",
-
     0o1400: "IDLE",
     0o1410: "CLR",
     0o1420: "CMP",
     0o1430: "SET",
-
     0o1500: "PION",
     0o1600: "PIOF",
-
     0o7401: "TIF",
     0o7402: "TIR",
     0o7403: "TRF",
@@ -158,7 +191,6 @@ def decode_relative(word, pc):
         return None
 
     mnem = table[op]
-
     indirect = (word & 0o0200) != 0
     neg = (word & 0o0100) != 0
     disp = word & 0o0077
@@ -167,8 +199,8 @@ def decode_relative(word, pc):
         disp = -disp
 
     target = (pc + disp) & 0o7777
-
     mode = "@ " if indirect else ""
+
     return "%-6s %s%+o ; %04o" % (mnem, mode, disp, target)
 
 
@@ -195,12 +227,9 @@ def disassemble(words, origin):
 
     while i < len(words):
         pc = (origin + i) & 0o7777
-
         size, text = decode(words, i, origin)
-
         raw = " ".join(oct12(words[i + j]) for j in range(size))
         print("%04o: %-9s %s" % (pc, raw, text))
-
         i += size
 
 
@@ -216,34 +245,24 @@ def parse_num(text):
     return int(text)
 
 
-def pair_frames_to_words(frames):
-    words = []
-    i = 0
+def read_marked_word(a, b):
+    return ((a & 0x3F) << 6) | (b & 0x3F)
 
-    while i + 1 < len(frames):
-        w = ((frames[i] & 0x3F) << 6) | (frames[i + 1] & 0x3F)
-        words.append(w)
-        i += 2
 
-    trailing = None
-    if i < len(frames):
-        trailing = frames[i] & 0x3F
-
-    return words, trailing
+def read_plain_word(a, b):
+    return ((a & 0x3F) << 6) | (b & 0x3F)
 
 
 def parse_ndpt_records(data):
     records = []
-
     pos = 0
+    field = 0
 
     while pos < len(data) and data[pos] == 0x00:
         pos += 1
 
     while pos < len(data) and data[pos] == 0x80:
         pos += 1
-
-    current_field = 0
 
     while pos < len(data):
         b = data[pos]
@@ -257,142 +276,149 @@ def parse_ndpt_records(data):
             continue
 
         if 0x84 <= b <= 0x87:
-            current_field = b & 0x03
+            field = b & 0x03
             pos += 1
             continue
 
-        if 0x40 <= b <= 0x7F:
-            rec_pos = pos
-            load_hi = b & 0x3F
+        if not (0x40 <= b <= 0x7F):
             pos += 1
+            continue
 
-            while pos < len(data) and data[pos] == 0x80:
-                pos += 1
+        rec_start = pos
 
-            if pos >= len(data):
-                records.append({
-                    "file_offset": rec_pos,
-                    "field": current_field,
-                    "load_addr": None,
-                    "payload_words": [],
-                    "checksum_word": None,
-                    "checksum_sum": None,
-                    "checksum_ok": False,
-                    "trailing_frame": None,
-                    "error": "record start at end of file",
-                })
-                break
-
-            load_lo = data[pos] & 0x3F
-            load_addr = (load_hi << 6) | load_lo
-            pos += 1
-
-            frames = []
-            while pos < len(data):
-                b2 = data[pos]
-
-                if b2 == 0x80:
-                    pos += 1
-                    continue
-
-                if b2 == 0x00:
-                    frames.append(0)
-                    pos += 1
-                    continue
-
-                if b2 < 0x40:
-                    frames.append(b2 & 0x3F)
-                    pos += 1
-                    continue
-
-                break
-
-            words, trailing_frame = pair_frames_to_words(frames)
-
-            checksum_word = None
-            payload_words = []
-
-            if words:
-                payload_words = words[:-1]
-                checksum_word = words[-1]
-
-            checksum_sum = None
-            checksum_ok = False
-
-            if trailing_frame is None:
-                checksum_sum = load_addr
-                for w in words:
-                    checksum_sum = (checksum_sum + w) & 0x0FFF
-                checksum_ok = (checksum_sum == 0)
-
+        if pos + 1 >= len(data):
             records.append({
-                "file_offset": rec_pos,
-                "field": current_field,
-                "load_addr": load_addr,
-                "payload_words": payload_words,
-                "checksum_word": checksum_word,
-                "checksum_sum": checksum_sum,
-                "checksum_ok": checksum_ok,
-                "trailing_frame": trailing_frame,
-                "error": None,
+                "field": field,
+                "origin": None,
+                "payload": [],
+                "tape_checksum": None,
+                "computed_checksum": None,
+                "expected_checksum": None,
+                "checksum_ok": False,
+                "file_offset": rec_start,
+                "error": "truncated origin",
             })
-            continue
+            break
 
-        pos += 1
+        origin = read_marked_word(data[pos], data[pos + 1])
+        pos += 2
+
+        payload = []
+        tape_checksum = None
+        error = None
+
+        while pos < len(data):
+            b = data[pos]
+
+            if b == 0x80:
+                pos += 1
+                continue
+
+            if 0x40 <= b <= 0x7F:
+                if pos + 1 >= len(data):
+                    error = "truncated checksum"
+                    pos += 1
+                    break
+
+                tape_checksum = read_marked_word(data[pos], data[pos + 1])
+                pos += 2
+                break
+
+            if b <= 0x3F:
+                if pos + 1 >= len(data):
+                    error = "truncated payload word"
+                    pos += 1
+                    break
+
+                b2 = data[pos + 1]
+
+                if b2 > 0x3F:
+                    error = "unpaired payload frame before marked word"
+                    pos += 1
+                    break
+
+                payload.append(read_plain_word(b, b2))
+                pos += 2
+                continue
+
+            error = "unexpected byte 0x%02X in payload" % b
+            pos += 1
+            break
+
+        computed_checksum = None
+        expected_checksum = None
+        checksum_ok = False
+
+        if origin is not None:
+            computed_checksum = origin
+            for w in payload:
+                computed_checksum = (computed_checksum + w) & 0x0FFF
+            expected_checksum = (-computed_checksum) & 0x0FFF
+
+            if tape_checksum is not None:
+                checksum_ok = (tape_checksum == expected_checksum)
+
+        records.append({
+            "field": field,
+            "origin": origin,
+            "payload": payload,
+            "tape_checksum": tape_checksum,
+            "computed_checksum": computed_checksum,
+            "expected_checksum": expected_checksum,
+            "checksum_ok": checksum_ok,
+            "file_offset": rec_start,
+            "error": error,
+        })
 
     return records
 
 
-def disassemble_ndpt_records(records):
-    recno = 0
-
-    for rec in records:
-        recno += 1
-
+def disassemble_records(records):
+    for i, r in enumerate(records, 1):
         print(";")
-        print("; record %d" % recno)
-        print("; file offset: 0x%X" % rec["file_offset"])
-        print("; field: %o" % rec["field"])
+        print("; record %d" % i)
+        print("; file offset: 0x%X" % r["file_offset"])
+        print("; field: %o" % r["field"])
 
-        if rec["load_addr"] is None:
+        if r["origin"] is None:
             print("; load address: <missing>")
-            print("; error: %s" % rec["error"])
+            print("; computed checksum: <not available>")
+            print("; expected checksum: <not available>")
+            print("; tape checksum word: <missing>")
+            print("; checksum match: NO")
+            if r["error"]:
+                print("; error: %s" % r["error"])
             continue
 
-        full_load = (rec["field"] << 12) | rec["load_addr"]
-        print("; load address: %04o (physical %05o)" %
-              (rec["load_addr"], full_load))
+        phys = (r["field"] << 12) | r["origin"]
 
-        if rec["checksum_word"] is None:
-            print("; checksum word: <missing>")
-        else:
-            print("; checksum word: %04o" % rec["checksum_word"])
+        print("; load address: %04o (physical %05o)" % (r["origin"], phys))
+        print("; computed checksum: %04o" % r["computed_checksum"])
+        print("; expected checksum: %04o" % r["expected_checksum"])
 
-        if rec["trailing_frame"] is not None:
-            print("; checksum: incomplete record, trailing unpaired frame %02o" %
-                  rec["trailing_frame"])
-            print("; checksum match: NO")
-        elif rec["checksum_sum"] is None:
-            print("; checksum: <not computed>")
+        if r["tape_checksum"] is None:
+            print("; tape checksum word: <missing>")
             print("; checksum match: NO")
         else:
-            print("; checksum sum: %04o" % rec["checksum_sum"])
-            if rec["checksum_ok"]:
+            print("; tape checksum word: %04o" % r["tape_checksum"])
+            if r["checksum_ok"]:
                 print("; checksum match: YES")
             else:
                 print("; checksum match: NO")
 
-        if not rec["payload_words"]:
-            print("; no payload words")
-            continue
+        if r["error"]:
+            print("; error: %s" % r["error"])
 
-        disassemble(rec["payload_words"], rec["load_addr"])
+        if r["payload"]:
+            disassemble(r["payload"], r["origin"])
+        else:
+            print("; no payload words")
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("file")
-    parser.add_argument("--format", default="16be",
+    parser.add_argument("--format", default="ndpt",
                         choices=["16le", "16be", "pack3le", "pack3be", "ndpt"])
     parser.add_argument("--origin", default="0")
 
@@ -403,11 +429,11 @@ def main():
 
     if args.format == "ndpt":
         records = parse_ndpt_records(data)
-        disassemble_ndpt_records(records)
+        disassemble_records(records)
         return
 
-    origin = parse_num(args.origin)
     words = load_words(data, args.format)
+    origin = parse_num(args.origin)
     disassemble(words, origin)
 
 
