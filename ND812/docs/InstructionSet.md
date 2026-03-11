@@ -15,7 +15,7 @@
 ## Literal Format
 
 | Bits | Description |
-|------|-------------|
+|:----:|:------------|
 | 0-3 | Operation |
 | 4-5 | Instruction |
 | 6-11 | Literal |
@@ -23,8 +23,8 @@
 ## Group 1 Format
 
 | Bits | Description |
-|------|-------------|
-| 0-3 | 0010 |
+|:----:|:------------|
+| 0-3 | `0010` |
 | 4 | K |
 | 5 | J |
 | 6-7 | Shift/Rotate |
@@ -33,8 +33,8 @@
 ## Group 2 Format
 
 | Bits | Description |
-|------|-------------|
-| 0-3 | 0011 |
+|:----:|:------------|
+| 0-3 | `0011` |
 | 4 | K |
 | 5 | J |
 | 6 | OV |
@@ -47,20 +47,19 @@
 ## Two Word Instructions
 
 | Bits | Description |
-|------|-------------|
-| 0-2 | Operation |
+|:----:|:------------|
+| 0-2 | `000` |
 | 3-6 | Instruction |
 | 7 | Indirect |
 | 8 | KJ Accumulator |
 | 9 | Change Fields
-| 10 | MF1 |
-| 11 | MF2 |
+| 10-11 | Field number |
 
 # Instructions in Numerical Order
 
 | Octal Value | Mnemonic | Description |
-|-------------|----------|-------------|
-| 0000 | STOP | |
+|------------:|:---------|:------------|
+| 0000 | STOP | Halt the computer |
 | 0101 | CHSF | High-speed forward to cassette EOT (TWIO) |
 | 0102 | CSPF | space forward to cassette filemark (TWIO) |
 | 0104 | CSFM | Write filemark on cassette (TWIO) |
