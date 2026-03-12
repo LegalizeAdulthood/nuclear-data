@@ -267,14 +267,6 @@ def parse_ndpt_records(data):
     while pos < len(data):
         b = data[pos]
 
-        if b == 0x00:
-            pos += 1
-            continue
-
-        if b == 0x80:
-            pos += 1
-            continue
-
         if 0x84 <= b <= 0x87:
             field = b & 0x03
             pos += 1
