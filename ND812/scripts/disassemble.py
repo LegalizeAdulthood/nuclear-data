@@ -245,11 +245,7 @@ def parse_num(text):
     return int(text)
 
 
-def read_marked_word(a, b):
-    return ((a & 0x3F) << 6) | (b & 0x3F)
-
-
-def read_plain_word(a, b):
+def form_word(a, b):
     return ((a & 0x3F) << 6) | (b & 0x3F)
 
 
@@ -292,7 +288,7 @@ def parse_ndpt_records(data):
             })
             break
 
-        origin = read_marked_word(data[pos], data[pos + 1])
+        origin = form_word(data[pos], data[pos + 1])
         pos += 2
 
         payload = []
@@ -312,7 +308,7 @@ def parse_ndpt_records(data):
                     pos += 1
                     break
 
-                tape_checksum = read_marked_word(data[pos], data[pos + 1])
+                tape_checksum = form_word(data[pos], data[pos + 1])
                 pos += 2
                 break
 
@@ -329,7 +325,7 @@ def parse_ndpt_records(data):
                     pos += 1
                     break
 
-                payload.append(read_plain_word(b, b2))
+                payload.append(form_word(b, b2))
                 pos += 2
                 continue
 
