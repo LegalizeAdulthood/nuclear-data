@@ -319,9 +319,12 @@ def parse_ndpt_records(data):
                 pos += 2
                 break
 
-            # All payload frames are 00xx xxxx
-            if (b & 0x80):
-                raise ValueError(f"Corrupted payload data: {b} at position {pos}")
+            # FIELD directive frames are 100001xx
+            if (b & 0x84):
+                w = b << 6
+                payload.append(w)
+                pos += 1
+                continue
 
             if pos + 1 >= len(data):
                 error = "truncated payload word"
@@ -331,11 +334,11 @@ def parse_ndpt_records(data):
             b2 = data[pos + 1]
 
             if (b2 & 0x80):
-                raise ValueError(f"Corrupted payload data: {b2} at position {pos}")
+                raise ValueError(f"Corrupted payload second byte: 0x{b2:x} at position {pos}")
 
             w = form_word(b, b2)
             checksum += w
-            checksum &= 0xFFF
+            checksum %= 0xFFF
             payload.append(w)
             pos += 2
 
@@ -343,7 +346,10 @@ def parse_ndpt_records(data):
             raise ValueError(f"Missing checksum word at position {pos}")
 
         if checksum != tape_checksum:
-            raise ValueError(f"Checksum mismatch: expected {tape_checksum}, got {checksum}")
+            print("%04o" % origin)
+            for i, p in enumerate(payload):
+                print("%04o" % p)
+            raise ValueError(f"Checksum mismatch: expected {tape_checksum:o}, got {checksum:o}")
 
         records.append({
             "field": field,
