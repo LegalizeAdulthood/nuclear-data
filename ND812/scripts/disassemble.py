@@ -249,10 +249,26 @@ def form_word(a, b):
     return ((a & 0x3F) << 6) | (b & 0x3F)
 
 
+# The origin and check sum words consist of two frames:
+#   01xx xxxx
+#   00xx xxxx
+# The first frame has bit 7 set and is the high 6 bits of the word.
+# The second frame has bit 7 clear and is the low 6 bits of the word.
+#
+def get_marked_word(data, pos):
+    if pos >= len(data) - 1:
+        raise RuntimeError("Insufficient data")
+
+    if not (data[pos] & 0x40):
+        raise ValueError(f"Expected marked byte at {pos}, got {data[pos]} instead.")
+
+    return form_word(data[pos], data[pos + 1])
+
+
 def parse_ndpt_records(data):
     records = []
     pos = 0
-    field = 0
+    field = None
 
     while pos < len(data) and data[pos] == 0x00:
         pos += 1
@@ -263,12 +279,9 @@ def parse_ndpt_records(data):
     while pos < len(data):
         b = data[pos]
 
+        # 100001xx is from the FIELD assembler directive
         if 0x84 <= b <= 0x87:
             field = b & 0x03
-            pos += 1
-            continue
-
-        if not (0x40 <= b <= 0x7F):
             pos += 1
             continue
 
@@ -288,74 +301,56 @@ def parse_ndpt_records(data):
             })
             break
 
-        origin = form_word(data[pos], data[pos + 1])
+        origin = get_marked_word(data, pos)
         pos += 2
 
         payload = []
+        checksum = origin
         tape_checksum = None
         error = None
 
         while pos < len(data):
             b = data[pos]
 
-            if b == 0x80:
-                pos += 1
-                continue
-
-            if 0x40 <= b <= 0x7F:
-                if pos + 1 >= len(data):
-                    error = "truncated checksum"
-                    pos += 1
-                    break
-
-                tape_checksum = form_word(data[pos], data[pos + 1])
+            # First frame with bit 7 set indicates
+            # end of payload and start of checksum word
+            if (b & 0x40):
+                tape_checksum = get_marked_word(data, pos)
                 pos += 2
                 break
 
-            if b <= 0x3F:
-                if pos + 1 >= len(data):
-                    error = "truncated payload word"
-                    pos += 1
-                    break
+            # All payload frames are 00xx xxxx
+            if (b & 0x80):
+                raise ValueError(f"Corrupted payload data: {b} at position {pos}")
 
-                b2 = data[pos + 1]
+            if pos + 1 >= len(data):
+                error = "truncated payload word"
+                pos += 1
+                break
 
-                if b2 > 0x3F:
-                    error = "unpaired payload frame before marked word"
-                    pos += 1
-                    break
+            b2 = data[pos + 1]
 
-                payload.append(form_word(b, b2))
-                pos += 2
-                continue
+            if (b2 & 0x80):
+                raise ValueError(f"Corrupted payload data: {b2} at position {pos}")
 
-            error = "unexpected byte 0x%02X in payload" % b
-            pos += 1
-            break
+            w = form_word(b, b2)
+            checksum += w
+            checksum &= 0xFFF
+            payload.append(w)
+            pos += 2
 
-        computed_checksum = None
-        expected_checksum = None
-        checksum_ok = False
+        if tape_checksum is None:
+            raise ValueError(f"Missing checksum word at position {pos}")
 
-        if origin is not None:
-            computed_checksum = origin
-            for w in payload:
-                computed_checksum = (computed_checksum + w) & 0x0FFF
-            expected_checksum = (-computed_checksum) & 0x0FFF
-
-            if tape_checksum is not None:
-                checksum_ok = (tape_checksum == expected_checksum)
+        if checksum != tape_checksum:
+            raise ValueError(f"Checksum mismatch: expected {tape_checksum}, got {checksum}")
 
         records.append({
             "field": field,
             "origin": origin,
             "payload": payload,
             "tape_checksum": tape_checksum,
-            "computed_checksum": computed_checksum,
-            "expected_checksum": expected_checksum,
-            "checksum_ok": checksum_ok,
-            "file_offset": rec_start,
-            "error": error,
+            "file_offset": rec_start
         })
 
     return records
@@ -363,44 +358,20 @@ def parse_ndpt_records(data):
 
 def disassemble_records(records):
     for i, r in enumerate(records, 1):
-        print(";")
-        print("; record %d" % i)
-        print("; file offset: 0x%X" % r["file_offset"])
-        print("; field: %o" % r["field"])
+        print("/")
+        print("/ record %d" % i)
+        print("/ file offset: 0x%X" % r["file_offset"])
 
-        if r["origin"] is None:
-            print("; load address: <missing>")
-            print("; computed checksum: <not available>")
-            print("; expected checksum: <not available>")
-            print("; tape checksum word: <missing>")
-            print("; checksum match: NO")
-            if r["error"]:
-                print("; error: %s" % r["error"])
-            continue
+        if not r["field"] is None:
+            print("        FIELD   %d" % r["field"])
+        print("        *%04o" % r["origin"])
 
-        phys = (r["field"] << 12) | r["origin"]
-
-        print("; load address: %04o (physical %05o)" % (r["origin"], phys))
-        print("; computed checksum: %04o" % r["computed_checksum"])
-        print("; expected checksum: %04o" % r["expected_checksum"])
-
-        if r["tape_checksum"] is None:
-            print("; tape checksum word: <missing>")
-            print("; checksum match: NO")
-        else:
-            print("; tape checksum word: %04o" % r["tape_checksum"])
-            if r["checksum_ok"]:
-                print("; checksum match: YES")
-            else:
-                print("; checksum match: NO")
-
-        if r["error"]:
-            print("; error: %s" % r["error"])
+        print("/ checksum: %04o" % r["tape_checksum"])
 
         if r["payload"]:
             disassemble(r["payload"], r["origin"])
         else:
-            print("; no payload words")
+            print("/ no payload words")
 
 
 def main():
