@@ -204,9 +204,34 @@ def decode_relative(word, pc):
     return "%-6s %s%+o ; %04o" % (mnem, mode, disp, target)
 
 
+def decode_group1(word):
+    pass
+
+
+def decode_group2(word):
+    pass
+
+
+def decode_single_word(word):
+    pass
+
+
+def decode_two_word(words, i, origin):
+    pass
+
+
 def decode(words, i, origin):
     pc = (origin + i) & 0o7777
     w = words[i]
+
+    if (0o7400 & w) == 0o1400:
+        decode_group2(w)
+    elif (0o7400 & w) == 0o1000:
+        decode_group1(w)
+    elif (0o7000 & w) == 0:
+        decode_two_word(words, i)
+    else:
+        decode_single_word(w)
 
     if w in EXACT:
         return 1, EXACT[w]
@@ -346,10 +371,7 @@ def parse_ndpt_records(data):
             raise ValueError(f"Missing checksum word at position {pos}")
 
         if checksum != tape_checksum:
-            print("%04o" % origin)
-            for i, p in enumerate(payload):
-                print("%04o" % p)
-            raise ValueError(f"Checksum mismatch: expected {tape_checksum:o}, got {checksum:o}")
+            print(f"Checksum mismatch: expected {tape_checksum:o}, got {checksum:o}")
 
         records.append({
             "field": field,
