@@ -103,6 +103,7 @@ EXACT = {
     0o1430: "SET",
     0o1500: "PION",
     0o1600: "PIOF",
+    0o4400: "ADJ",
     0o7401: "TIF",
     0o7402: "TIR",
     0o7403: "TRF",
@@ -316,7 +317,7 @@ def process_tape_stream(data, filename):
                 break
 
             # FIELD directive in payload (unusual but handle it)
-            if (b & 0x84):
+            if 0x84 <= b <= 0x87:
                 pos += 1
                 continue
 
