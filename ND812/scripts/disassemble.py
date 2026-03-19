@@ -274,6 +274,7 @@ def process_tape_stream(data, filename):
         # Field change directive (100001xx)
         if 0x84 <= b <= 0x87:
             field = b & 0x03
+            print(format_line(mnemonic="FIELD", operand="%d" % field))
             pos += 1
             continue
 
@@ -284,10 +285,6 @@ def process_tape_stream(data, filename):
         print(format_comment(""))
         print(format_comment(" record %d" % record_num))
         print(format_comment(" file offset: 0x%X" % rec_start))
-
-        # Output FIELD directive if set
-        if field is not None:
-            print(format_line(mnemonic="FIELD", operand="%d" % field))
 
         # Read origin address
         if pos + 1 >= len(data):
