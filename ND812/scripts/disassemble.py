@@ -275,7 +275,7 @@ def process_tape_stream(data, filename):
         # Field change directive (100001xx)
         if 0x84 <= b <= 0x87:
             field = b & 0x03
-            print(format_line(mnemonic="FIELD", operand="%d" % field))
+            print(format_line(mnemonic="[FIELD", operand="%d" % field))
             pos += 1
             continue
 
