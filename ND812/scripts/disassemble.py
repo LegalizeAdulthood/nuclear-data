@@ -194,7 +194,7 @@ def decode_instruction(word, pc):
     if mnem:
         return mnem, operand, comment
 
-    return ".WORD", "%04o" % word, ""
+    return "%04o" % word, "", ""
 
 
 def format_line(label="", mnemonic="", operand="", comment=""):
