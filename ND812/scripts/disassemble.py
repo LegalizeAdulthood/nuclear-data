@@ -2,12 +2,8 @@
 #
 # ND812 disassembler
 #
-# Input formats supported:
-#   16le    : one 12-bit word stored in a 16-bit little endian value
-#   16be    : one 12-bit word stored in a 16-bit big endian value
-#   pack3be : two 12-bit words packed into 3 bytes, big endian style
-#   pack3le : two 12-bit words packed into 3 bytes, little endian style
-#   ndpt    : ND812 binary paper tape dump
+# Input format:
+#   ND812 binary paper tape dump
 #
 # ND812 binary paper tape format used here:
 #
@@ -75,54 +71,6 @@ def oct12(v):
 
 def oct15(v):
     return "%05o" % (v & 0o77777)
-
-
-def load_words(data, fmt):
-    words = []
-
-    if fmt == "16le":
-        if len(data) % 2:
-            raise ValueError("input length must be even")
-        for i in range(0, len(data), 2):
-            w = data[i] | (data[i + 1] << 8)
-            words.append(w & 0x0FFF)
-        return words
-
-    if fmt == "16be":
-        if len(data) % 2:
-            raise ValueError("input length must be even")
-        for i in range(0, len(data), 2):
-            w = (data[i] << 8) | data[i + 1]
-            words.append(w & 0x0FFF)
-        return words
-
-    if fmt == "pack3be":
-        if len(data) % 3:
-            raise ValueError("length must be multiple of 3")
-        for i in range(0, len(data), 3):
-            b0 = data[i]
-            b1 = data[i + 1]
-            b2 = data[i + 2]
-            w1 = ((b0 << 4) | (b1 >> 4)) & 0x0FFF
-            w2 = (((b1 & 0x0F) << 8) | b2) & 0x0FFF
-            words.append(w1)
-            words.append(w2)
-        return words
-
-    if fmt == "pack3le":
-        if len(data) % 3:
-            raise ValueError("length must be multiple of 3")
-        for i in range(0, len(data), 3):
-            b0 = data[i]
-            b1 = data[i + 1]
-            b2 = data[i + 2]
-            w1 = (b0 | ((b1 & 0x0F) << 8)) & 0x0FFF
-            w2 = ((b2 << 4) | (b1 >> 4)) & 0x0FFF
-            words.append(w1)
-            words.append(w2)
-        return words
-
-    raise ValueError("unsupported format")
 
 
 EXACT = {
@@ -256,18 +204,6 @@ def disassemble(words, origin):
         raw = " ".join(oct12(words[i + j]) for j in range(size))
         print("%04o: %-9s %s" % (pc, raw, text))
         i += size
-
-
-def parse_num(text):
-    text = text.strip()
-
-    if text.startswith("0o"):
-        return int(text, 8)
-
-    if all(c in "01234567" for c in text):
-        return int(text, 8)
-
-    return int(text)
 
 
 def form_word(a, b):
@@ -404,24 +340,15 @@ def disassemble_records(records):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("file")
-    parser.add_argument("--format", default="ndpt",
-                        choices=["16le", "16be", "pack3le", "pack3be", "ndpt"])
-    parser.add_argument("--origin", default="0")
+    parser.add_argument("file", help="ND812 binary paper tape dump file")
 
     args = parser.parse_args()
 
     with open(args.file, "rb") as f:
         data = f.read()
 
-    if args.format == "ndpt":
-        records = parse_ndpt_records(data)
-        disassemble_records(records)
-        return
-
-    words = load_words(data, args.format)
-    origin = parse_num(args.origin)
-    disassemble(words, origin)
+    records = parse_ndpt_records(data)
+    disassemble_records(records)
 
 
 if __name__ == "__main__":
