@@ -114,13 +114,13 @@ def decode_literal(word):
     lit = word & 0o0077
 
     if op == 0o2100:
-        return "ANDL %02o" % lit
+        return "ANDL", "%02o" % lit
     if op == 0o2200:
-        return "ADDL %02o" % lit
+        return "ADDL", "%02o" % lit
     if op == 0o2300:
-        return "SUBL %02o" % lit
+        return "SUBL", "%02o" % lit
 
-    return None
+    return None, None
 
 
 def decode_relative(word, pc):
@@ -136,7 +136,7 @@ def decode_relative(word, pc):
     }
 
     if op not in table:
-        return None
+        return None, None, None
 
     mnem = table[op]
     indirect = (word & 0o0200) != 0
@@ -148,8 +148,10 @@ def decode_relative(word, pc):
 
     target = (pc + disp) & 0o7777
     mode = "@ " if indirect else ""
+    operand = "%s%+o" % (mode, disp)
+    comment = "%04o" % target
 
-    return "%-6s %s%+o ; %04o" % (mnem, mode, disp, target)
+    return mnem, operand, comment
 
 
 def decode_group1(word):
@@ -168,69 +170,78 @@ def decode_two_word(words, i, origin):
     pass
 
 
-def decode(words, i, origin):
-    pc = (origin + i) & 0o7777
-    w = words[i]
-
-    if (0o7400 & w) == 0o1400:
-        decode_group2(w)
-    elif (0o7400 & w) == 0o1000:
-        decode_group1(w)
-    elif (0o7000 & w) == 0:
-        decode_two_word(words, i)
+def decode_instruction(word, pc):
+    """Decode a single instruction word and return (mnemonic, operand, comment)."""
+    if (0o7400 & word) == 0o1400:
+        decode_group2(word)
+    elif (0o7400 & word) == 0o1000:
+        decode_group1(word)
+    elif (0o7000 & word) == 0:
+        decode_two_word(None, 0, 0)
     else:
-        decode_single_word(w)
+        decode_single_word(word)
 
-    if w in EXACT:
-        return 1, EXACT[w]
+    if word in EXACT:
+        return EXACT[word], "", ""
 
-    lit = decode_literal(w)
-    if lit:
-        return 1, lit
+    mnem, operand = decode_literal(word)
+    if mnem:
+        return mnem, operand, ""
 
-    rel = decode_relative(w, pc)
-    if rel:
-        return 1, rel
+    mnem, operand, comment = decode_relative(word, pc)
+    if mnem:
+        return mnem, operand, comment
 
-    return 1, ".WORD %04o" % w
+    return ".WORD", "%04o" % word, ""
 
 
-def disassemble(words, origin):
-    i = 0
+def format_line(label="", mnemonic="", operand="", comment=""):
+    """Format a line in ND812 assembler syntax.
 
-    while i < len(words):
-        pc = (origin + i) & 0o7777
-        size, text = decode(words, i, origin)
-        raw = " ".join(oct12(words[i + j]) for j in range(size))
-        print("%04o: %-9s %s" % (pc, raw, text))
-        i += size
+    Columns 1-8:   label (followed by comma if present)
+    Columns 9-16:  mnemonic
+    Columns 17+:   operand
+    Column 40+:    comment (prefixed with /)
+    """
+    if label:
+        label = label + ","
+
+    label_field = label.ljust(8)
+    mnem_field = mnemonic.ljust(8)
+
+    if comment:
+        if operand:
+            line = f"{label_field}{mnem_field}{operand}"
+            line = line.ljust(39) + " /" + comment
+        else:
+            line = f"{label_field}{mnem_field}"
+            if line.rstrip():
+                line = line.ljust(39) + " /" + comment
+            else:
+                line = "/" + comment
+    else:
+        line = f"{label_field}{mnem_field}{operand}"
+
+    return line.rstrip()
+
+
+def format_comment(text):
+    """Format a full-line comment."""
+    return "/" + text
 
 
 def form_word(a, b):
+    """Form a 12-bit word from two 6-bit frames."""
     return ((a & 0x3F) << 6) | (b & 0x3F)
 
 
-# The origin and check sum words consist of two frames:
-#   01xx xxxx
-#   00xx xxxx
-# The first frame has bit 7 set and is the high 6 bits of the word.
-# The second frame has bit 7 clear and is the low 6 bits of the word.
-#
-def get_marked_word(data, pos):
-    if pos >= len(data) - 1:
-        raise RuntimeError("Insufficient data")
-
-    if not (data[pos] & 0x40):
-        raise ValueError(f"Expected marked byte at {pos}, got {data[pos]} instead.")
-
-    return form_word(data[pos], data[pos + 1])
-
-
-def parse_ndpt_records(data):
-    records = []
+def process_tape_stream(data):
+    """Process and disassemble ND812 paper tape data as it is encountered."""
     pos = 0
     field = None
+    record_num = 0
 
+    # Skip initial null bytes and leader/trailer
     while pos < len(data) and data[pos] == 0x00:
         pos += 1
 
@@ -240,106 +251,102 @@ def parse_ndpt_records(data):
     while pos < len(data):
         b = data[pos]
 
-        # 100001xx is from the FIELD assembler directive
+        # Field change directive (100001xx)
         if 0x84 <= b <= 0x87:
             field = b & 0x03
             pos += 1
             continue
 
+        # Start of new record
+        record_num += 1
         rec_start = pos
 
+        print(format_comment(""))
+        print(format_comment(" record %d" % record_num))
+        print(format_comment(" file offset: 0x%X" % rec_start))
+
+        # Output FIELD directive if set
+        if field is not None:
+            print(format_line(mnemonic="FIELD", operand="%d" % field))
+
+        # Read origin address
         if pos + 1 >= len(data):
-            records.append({
-                "field": field,
-                "origin": None,
-                "payload": [],
-                "tape_checksum": None,
-                "computed_checksum": None,
-                "expected_checksum": None,
-                "checksum_ok": False,
-                "file_offset": rec_start,
-                "error": "truncated origin",
-            })
+            print(format_comment(" ERROR: truncated origin"))
             break
 
-        origin = get_marked_word(data, pos)
-        pos += 2
+        if not (data[pos] & 0x40):
+            print(format_comment(" ERROR: Expected marked byte at position %d, got 0x%02x" % (pos, data[pos])))
+            break
 
-        payload = []
+        origin = form_word(data[pos], data[pos + 1])
+        pos += 2
+        pc = origin
+
+        # Output origin directive
+        print(format_line(mnemonic="*%04o" % origin))
+
+        # Process payload words and disassemble immediately
         checksum = origin
         tape_checksum = None
-        error = None
 
         while pos < len(data):
             b = data[pos]
 
-            # First frame with bit 7 set indicates
-            # end of payload and start of checksum word
+            # Marked byte indicates checksum word
             if (b & 0x40):
-                tape_checksum = get_marked_word(data, pos)
+                tape_checksum = form_word(data[pos], data[pos + 1])
                 pos += 2
                 break
 
-            # FIELD directive frames are 100001xx
+            # FIELD directive in payload (unusual but handle it)
             if (b & 0x84):
-                w = b << 6
-                payload.append(w)
                 pos += 1
                 continue
 
+            # Read payload word
             if pos + 1 >= len(data):
-                error = "truncated payload word"
+                print(format_comment(" ERROR: truncated payload word"))
                 pos += 1
                 break
 
             b2 = data[pos + 1]
 
             if (b2 & 0x80):
-                raise ValueError(f"Corrupted payload second byte: 0x{b2:x} at position {pos}")
+                print(format_comment(" ERROR: Corrupted payload second byte: 0x%02x at position %d" % (b2, pos)))
+                pos += 2
+                continue
 
-            w = form_word(b, b2)
-            checksum += w
-            checksum %= 0xFFF
-            payload.append(w)
+            word = form_word(b, b2)
+            checksum = (checksum + word) & 0xFFF
             pos += 2
 
+            # Disassemble and output immediately
+            mnem, operand, comment = decode_instruction(word, pc)
+            raw_comment = "%04o" % word
+            if comment:
+                full_comment = " %s = %s" % (raw_comment, comment)
+            else:
+                full_comment = " " + raw_comment
+            print(format_line(mnemonic=mnem, operand=operand, comment=full_comment))
+
+            pc = (pc + 1) & 0o7777
+
+        # Output checksum information
         if tape_checksum is None:
-            raise ValueError(f"Missing checksum word at position {pos}")
-
-        if checksum != tape_checksum:
-            print(f"Checksum mismatch: expected {tape_checksum:o}, got {checksum:o}")
-
-        records.append({
-            "field": field,
-            "origin": origin,
-            "payload": payload,
-            "tape_checksum": tape_checksum,
-            "file_offset": rec_start
-        })
-
-    return records
-
-
-def disassemble_records(records):
-    for i, r in enumerate(records, 1):
-        print("/")
-        print("/ record %d" % i)
-        print("/ file offset: 0x%X" % r["file_offset"])
-
-        if not r["field"] is None:
-            print("        FIELD   %d" % r["field"])
-        print("        *%04o" % r["origin"])
-
-        print("/ checksum: %04o" % r["tape_checksum"])
-
-        if r["payload"]:
-            disassemble(r["payload"], r["origin"])
+            print(format_comment(" ERROR: Missing checksum word"))
         else:
-            print("/ no payload words")
+            if checksum != tape_checksum:
+                print(format_comment(" checksum: %04o (MISMATCH: computed %04o)" % (tape_checksum, checksum)))
+            else:
+                print(format_comment(" checksum: %04o" % tape_checksum))
+
+        # Skip trailing leader/trailer
+        while pos < len(data) and data[pos] == 0x80:
+            pos += 1
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="ND812 disassembler for binary paper tape dumps")
     parser.add_argument("file", help="ND812 binary paper tape dump file")
 
     args = parser.parse_args()
@@ -347,8 +354,7 @@ def main():
     with open(args.file, "rb") as f:
         data = f.read()
 
-    records = parse_ndpt_records(data)
-    disassemble_records(records)
+    process_tape_stream(data)
 
 
 if __name__ == "__main__":
