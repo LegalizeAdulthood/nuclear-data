@@ -103,7 +103,6 @@ EXACT = {
     0o1430: "SET",
     0o1500: "PION",
     0o1600: "PIOF",
-    0o4400: "ADJ",
     0o7401: "TIF",
     0o7402: "TIR",
     0o7403: "TRF",
@@ -132,7 +131,9 @@ def decode_relative(word, pc):
         4: "ANDF",   # 0o20xx
         6: "DSZ",    # 0o30xx
         8: "SBJ",    # 0o40xx
+        9: "ADJ",    # 0o44xx
         10: "LDJ",   # 0o50xx
+        11: "STJ",   # 0o54xx
         12: "JMP",   # 0o60xx
         14: "XCT",   # 0o70xx
     }
