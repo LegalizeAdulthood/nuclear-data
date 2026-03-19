@@ -63,6 +63,7 @@
 #
 
 import argparse
+import os
 
 
 def oct12(v):
@@ -235,18 +236,37 @@ def form_word(a, b):
     return ((a & 0x3F) << 6) | (b & 0x3F)
 
 
-def process_tape_stream(data):
+def process_tape_stream(data, filename):
     """Process and disassemble ND812 paper tape data as it is encountered."""
     pos = 0
     field = None
     record_num = 0
 
-    # Skip initial null bytes and leader/trailer
+    # Output filename
+    print(format_comment(" " + filename))
+
+    # Count and skip initial null bytes (only initial consecutive NULs)
+    null_start = pos
     while pos < len(data) and data[pos] == 0x00:
         pos += 1
+    null_count = pos - null_start
 
-    while pos < len(data) and data[pos] == 0x80:
+    if null_count > 0:
+        print(format_comment(" %04o (%d) NUL bytes" % (null_count, null_count)))
+
+    # Count leader/trailer bytes (everything from here until first non-0x80, non-0x00 byte)
+    # This includes 0x80 bytes and any interspersed 0x00 bytes
+    leader_start = pos
+    while pos < len(data) and (data[pos] == 0x80 or data[pos] == 0x00):
         pos += 1
+    leader_count = pos - leader_start
+
+    if leader_count > 0:
+        print(format_comment(" %04o (%d) leader bytes" % (leader_count, leader_count)))
+
+    # If no more data, we're done
+    if pos >= len(data):
+        return
 
     while pos < len(data):
         b = data[pos]
@@ -354,7 +374,9 @@ def main():
     with open(args.file, "rb") as f:
         data = f.read()
 
-    process_tape_stream(data)
+    # Use just the basename for output
+    filename = os.path.basename(args.file)
+    process_tape_stream(data, filename)
 
 
 if __name__ == "__main__":
