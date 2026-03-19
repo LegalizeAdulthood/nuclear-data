@@ -129,12 +129,12 @@ def decode_relative(word, pc):
     op = (word >> 8) & 0xF
 
     table = {
-        0o2: "ANDF",
-        0o3: "DSZ",
-        0o4: "SBJ",
-        0o5: "LDJ",
-        0o6: "JMP",
-        0o7: "XCT",
+        4: "ANDF",   # 0o20xx
+        6: "DSZ",    # 0o30xx
+        8: "SBJ",    # 0o40xx
+        10: "LDJ",   # 0o50xx
+        12: "JMP",   # 0o60xx
+        14: "XCT",   # 0o70xx
     }
 
     if op not in table:
@@ -150,8 +150,8 @@ def decode_relative(word, pc):
 
     target = (pc + disp) & 0o7777
     mode = "@ " if indirect else ""
-    operand = "%s%+o" % (mode, disp)
-    comment = "%04o" % target
+    operand = "%s.%+o" % (mode, disp)
+    comment = ".%+o = %04o" % (disp, target)
 
     return mnem, operand, comment
 
@@ -340,10 +340,10 @@ def process_tape_stream(data, filename):
 
             # Disassemble and output immediately
             mnem, operand, comment = decode_instruction(word, pc)
-            raw_comment = "%04o" % word
             if comment:
-                full_comment = " %s = %s" % (raw_comment, comment)
+                full_comment = " " + comment
             else:
+                raw_comment = "%04o" % word
                 full_comment = " " + raw_comment
             print(format_line(mnemonic=mnem, operand=operand, comment=full_comment))
 
@@ -353,7 +353,7 @@ def process_tape_stream(data, filename):
         if tape_checksum is None:
             print(format_comment(" ERROR: Missing checksum word"))
         else:
-            if checksum != tape_checksum:
+            if (checksum + tape_checksum) & 0xFFF != 0:
                 print(format_comment(" checksum: %04o (MISMATCH: computed %04o)" % (tape_checksum, checksum)))
             else:
                 print(format_comment(" checksum: %04o" % tape_checksum))
