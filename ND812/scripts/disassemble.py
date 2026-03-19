@@ -145,13 +145,14 @@ def decode_relative(word, pc):
     neg = (word & 0o0100) != 0
     disp = word & 0o0077
 
-    if neg:
-        disp = -disp
+    sign_char = '-' if neg else '+'
+    signed_disp = -disp if neg else disp
 
-    target = (pc + disp) & 0o7777
-    mode = "@ " if indirect else ""
-    operand = "%s.%+o" % (mode, disp)
-    comment = ".%+o = %04o" % (disp, target)
+    target = (pc + signed_disp) & 0o7777
+    if indirect:
+        mnem += "@"
+    operand = ".%s%o" % (sign_char, disp)
+    comment = ".%s%o = %04o" % (sign_char, disp, target)
 
     return mnem, operand, comment
 
@@ -214,11 +215,11 @@ def format_line(label="", mnemonic="", operand="", comment=""):
     if comment:
         if operand:
             line = f"{label_field}{mnem_field}{operand}"
-            line = line.ljust(39) + " /" + comment
+            line = line.ljust(39) + "/" + comment
         else:
             line = f"{label_field}{mnem_field}"
             if line.rstrip():
-                line = line.ljust(39) + " /" + comment
+                line = line.ljust(39) + "/" + comment
             else:
                 line = "/" + comment
     else:
