@@ -111,6 +111,14 @@ EXACT = {
     0o7412: "TOP",
     0o7413: "TCP",
     0o7414: "TOS",
+    0o7421: "HIF",
+    0o7422: "HIR",
+    0o7423: "HRF",
+    0o7424: "HIS",
+    0o7431: "HOP",
+    0o7432: "HOL",
+    0o7433: "HLP",
+    0o7434: "HOS",
     0o7720: "LDREG",  # Load JPS from J, INT from K
     0o7721: "LDJK",   # Load J from JPS, K from INT
     0o7722: "RJIB",   # Set JPS and INT status
