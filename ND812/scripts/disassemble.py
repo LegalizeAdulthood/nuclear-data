@@ -173,6 +173,7 @@ def decode_group1(word):
     group1_ops = {
         0o1000: "AND",
         0o1020: "AJK",
+        0o1021: "SJK",
         0o1030: "NAJK",
     }
 
