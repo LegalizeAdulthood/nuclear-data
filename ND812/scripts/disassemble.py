@@ -165,15 +165,25 @@ def decode_group1(word):
     k = (word & 0o0200) != 0
     j = (word & 0o0100) != 0
 
-    if (word & 0o7477) == 0o1000 and (k or j):
-        reg = ""
-        if j:
-            reg += "J"
-        if k:
-            reg += "K"
-        return "AND", reg
+    if not (k or j):
+        return None, None
 
-    return None, None
+    base = word & 0o7477  # mask out J/K register select bits
+
+    group1_ops = {
+        0o1000: "AND",
+        0o1020: "AJK",
+    }
+
+    if base not in group1_ops:
+        return None, None
+
+    reg = ""
+    if j:
+        reg += "J"
+    if k:
+        reg += "K"
+    return group1_ops[base], reg
 
 
 def decode_group2(word):
