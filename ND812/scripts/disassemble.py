@@ -137,6 +137,7 @@ def decode_relative(word, pc):
         10: "LDJ",   # 0o50xx
         11: "STJ",   # 0o54xx
         12: "JMP",   # 0o60xx
+        13: "JPS",   # 0o64xx
         14: "XCT",   # 0o70xx
     }
 
