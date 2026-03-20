@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 #
 # ND812 disassembler
 #
@@ -335,18 +335,82 @@ def decode_single_word(word):
     pass
 
 
-def decode_two_word(word1, word2):
+def decode_two_word(word1, word2, field):
     """Decode a two-word instruction.
 
-    For cassette tape instructions:
-    word1 should be TWIO (0o0740)
-    word2 encodes the specific cassette operation
-    """
-    if word1 == 0o0740:  # TWIO
-        if word2 in CASSETTE_OPS:
-            return CASSETTE_OPS[word2], "", ""
+    Two-word instructions have bits 0-2 = 000 in the first word.
+    Bit numbering: bit 0 = MSB, bit 11 = LSB
 
-    return None, None, None
+    For cassette tape I/O (TWIO):
+    word1 = 0o0740 (TWIO)
+    word2 = cassette operation code
+
+    For memory reference:
+    word1 bits (bit 0 = MSB):
+        0-2: 000 (two-word marker)
+        3-6: Instruction type (4 bits)
+        7: Indirect (mask 0o20)
+        8: K/J Accumulator (mask 0o10, 0=J, 1=K)
+        9: Change Fields (mask 0o4)
+        10-11: Field number (mask 0o3)
+    word2: Memory address
+
+    Returns (mnemonic, field_operand, address, field_num) where:
+        field_operand is "F0", "F1", etc. if change_field, else ""
+        address is the memory address
+        field_num is the target field number (for comment)
+    """
+    # Check if bits 0-2 are 000 (two-word instruction marker)
+    if (word1 & 0o7000) != 0:
+        return None, None, None, None
+
+    # TWIO cassette tape instructions
+    if word1 == 0o0740:
+        if word2 in CASSETTE_OPS:
+            # Return TWIO as mnemonic, cassette op name as "address" for second line
+            return "TWIO", "", CASSETTE_OPS[word2], None
+        return None, None, None, None
+
+    # Memory reference two-word instructions
+    # Extract bit fields (using correct bit numbering)
+    instr = (word1 >> 5) & 0xF        # Bits 3-6: instruction type
+    indirect = (word1 & 0o20) != 0    # Bit 7: indirect
+    use_k = (word1 & 0o10) != 0       # Bit 8: K/J selector (0=J, 1=K)
+    change_field = (word1 & 0o4) != 0 # Bit 9: change fields
+    target_field = word1 & 0o3        # Bits 10-11: field number
+    address = word2 & 0o7777          # Memory address
+
+    # Instruction decode table (instruction type → base mnemonic, has K variant)
+    instr_table = {
+        5: ("TWSM", True),    # Skip if accumulator != memory
+        6: ("TWDSZ", False),  # Decrement and skip if zero
+        7: ("TWISZ", False),  # Increment and skip if zero
+        8: ("TWSB", True),    # Subtract memory from accumulator
+        9: ("TWAD", True),    # Add memory to accumulator
+        10: ("TWLD", True),   # Load accumulator from memory
+        11: ("TWST", True),   # Store accumulator to memory
+        12: ("TWJMP", False), # Jump unconditionally
+        13: ("TWJPS", False), # Jump to subroutine
+        14: ("TWIO", False),  # Two-word I/O (handled above)
+    }
+
+    if instr not in instr_table:
+        return None, None, None, None
+
+    base_mnem, has_k = instr_table[instr]
+
+    # Build mnemonic
+    mnem = base_mnem
+    if has_k:
+        mnem += "K" if use_k else "J"
+
+    if indirect:
+        mnem += "@"
+
+    # Build field operand for first line
+    field_operand = "F%d" % target_field if change_field else ""
+
+    return mnem, field_operand, address, target_field if change_field else field
 
 
 def decode_instruction(word, pc):
@@ -520,16 +584,17 @@ def process_tape_stream(data, filename):
             checksum = (checksum + word) & 0xFFF
             pos += 2
 
-            # Check if this is a two-word instruction (TWIO prefix)
-            if word == 0o0740:  # TWIO
+            # Check if this is a two-word instruction (bits 0-2 == 000)
+            # BUT: STOP (0o0000) is a single-word instruction in EXACT table
+            if (word & 0o7000) == 0 and word not in EXACT:
                 # Read second word
                 if pos >= len(data):
-                    print(format_comment(" ERROR: truncated TWIO instruction"))
+                    print(format_comment(" ERROR: truncated two-word instruction"))
                     break
 
                 b3 = data[pos]
                 if (b3 & 0x40):  # Marked byte - not a valid second word
-                    print(format_comment(" ERROR: TWIO not followed by data word"))
+                    print(format_comment(" ERROR: two-word instruction not followed by data word"))
                     mnem, operand, comment = decode_instruction(word, pc)
                     if comment:
                         full_comment = " " + comment
@@ -541,7 +606,7 @@ def process_tape_stream(data, filename):
                     continue
 
                 if 0x84 <= b3 <= 0x87:  # Field change - not a valid second word
-                    print(format_comment(" ERROR: TWIO not followed by data word"))
+                    print(format_comment(" ERROR: two-word instruction not followed by data word"))
                     mnem, operand, comment = decode_instruction(word, pc)
                     if comment:
                         full_comment = " " + comment
@@ -553,12 +618,12 @@ def process_tape_stream(data, filename):
                     continue
 
                 if pos + 1 >= len(data):
-                    print(format_comment(" ERROR: truncated TWIO second word"))
+                    print(format_comment(" ERROR: truncated two-word instruction second word"))
                     break
 
                 b4 = data[pos + 1]
                 if (b4 & 0x80):
-                    print(format_comment(" ERROR: Corrupted TWIO second word byte: 0x%02x at position %d" % (b4, pos)))
+                    print(format_comment(" ERROR: Corrupted two-word instruction second byte: 0x%02x at position %d" % (b4, pos)))
                     pos += 2
                     continue
 
@@ -567,17 +632,29 @@ def process_tape_stream(data, filename):
                 pos += 2
 
                 # Decode two-word instruction
-                mnem, operand, comment = decode_two_word(word, word2)
+                mnem, field_op, addr, field_num = decode_two_word(word, word2, field)
                 if mnem:
-                    raw_comment = "%04o %04o" % (word, word2)
-                    full_comment = " " + raw_comment
-                    print(format_line(mnemonic=mnem, operand=operand, comment=full_comment))
+                    # Print first line with mnemonic and optional field operand
+                    # Comment shows only the first word
+                    comment1 = " %04o" % word
+                    print(format_line(mnemonic=mnem, operand=field_op, comment=comment1))
+                    # Print second line with address or operation name in mnemonic field
+                    # Comment shows only the second word
+                    # For TWIO, addr is the cassette operation name (string)
+                    # For memory reference, addr is a numeric address
+                    if isinstance(addr, str):
+                        addr_mnem = addr
+                    else:
+                        addr_mnem = "%04o" % addr
+                    comment2 = " %04o" % word2
+                    print(format_line(mnemonic=addr_mnem, operand="", comment=comment2))
                     pc = (pc + 2) & 0o7777
                 else:
                     # Unknown two-word instruction
-                    raw_comment = "%04o %04o" % (word, word2)
-                    full_comment = " " + raw_comment
-                    print(format_line(mnemonic="%04o" % word, operand="", comment=full_comment))
+                    comment1 = " %04o" % word
+                    comment2 = " %04o" % word2
+                    print(format_line(mnemonic="%04o" % word, operand="", comment=comment1))
+                    print(format_line(mnemonic="%04o" % word2, operand="", comment=comment2))
                     pc = (pc + 2) & 0o7777
             else:
                 # Single-word instruction - disassemble and output immediately
