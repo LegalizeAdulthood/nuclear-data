@@ -168,7 +168,8 @@ def decode_group1(word):
     if not (k or j):
         return None, None
 
-    base = word & 0o7477  # mask out J/K register select bits
+    negate = (word & 0o0010) != 0
+    base = word & 0o7467  # mask out J/K select and negate bits
 
     # (mnemonic, has_jk_form)
     group1_ops = {
@@ -179,12 +180,6 @@ def decode_group1(word):
         0o1023: ("SBR", False),
         0o1024: ("ADS", False),
         0o1025: ("SBS", False),
-        0o1030: ("NAJK", True),
-        0o1031: ("NSJK", True),
-        0o1032: ("NADR", False),
-        0o1033: ("NSBR", False),
-        0o1034: ("NADS", False),
-        0o1035: ("NSBS", False),
     }
 
     if base not in group1_ops:
@@ -194,6 +189,9 @@ def decode_group1(word):
 
     if j and k and not has_jk:
         return None, None
+
+    if negate:
+        mnem = "N" + mnem
 
     reg = ""
     if j:
