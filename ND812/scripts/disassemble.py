@@ -679,8 +679,10 @@ def process_tape_stream(data, filename):
             else:
                 print(format_comment(" checksum: %04o" % tape_checksum))
 
-        # Skip trailing leader/trailer
-        while pos < len(data) and data[pos] == 0x80:
+        # Skip trailing leader/trailer (0x80) and NUL bytes (0x00)
+        # This handles both standard ND812 format and ND4400/ND4420 format
+        # where NUL bytes can appear between records
+        while pos < len(data) and (data[pos] == 0x80 or data[pos] == 0x00):
             pos += 1
 
 
