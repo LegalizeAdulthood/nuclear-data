@@ -1,0 +1,29 @@
+name: Test ND812 Disassembler
+
+on:
+  push:
+    branches: [ develop, master ]
+  pull_request:
+    branches: [ develop, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+
+    - name: Run tests
+      run: |
+        cd ND812/scripts/test
+        for bin_file in *.bin; do
+          test_name="${bin_file%.bin}"
+          echo "Running test: $test_name"
+          python3 run-test.py "$test_name" || exit 1
+        done
