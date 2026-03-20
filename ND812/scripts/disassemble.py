@@ -217,11 +217,23 @@ def decode_group1(word):
 
 
 def decode_group2(word):
-    """Decode Group 2 instructions (skip instructions and clear/complement/set)."""
+    """Decode Group 2 instructions (skip instructions and clear/complement/set).
+
+    Bit numbering: bit 0 is MSB, bit 11 is LSB
+    Bit 4 = K accumulator (0o0200)
+    Bit 5 = J accumulator (0o0100)
+    Bit 6 = Overflow (0o0040)
+    Bits 7-8 encode operation:
+        00: Skip instruction
+        01: CLR (bit 8 set)
+        10: CMP (bit 7 set)
+        11: SET (both bits 7 and 8 set)
+    """
     k = (word & 0o0200) != 0
     j = (word & 0o0100) != 0
+    o = (word & 0o0040) != 0
 
-    if not (k or j):
+    if not (k or j or o):
         return None, None
 
     reg = ""
@@ -229,12 +241,15 @@ def decode_group2(word):
         reg += "J"
     if k:
         reg += "K"
+    if o:
+        reg += "O"
 
-    # Instruction type in bits 4-3
-    instr_type = (word >> 3) & 0o3
+    # Check operation type in bits 7-8
+    bit7 = (word & 0o0020) != 0
+    bit8 = (word & 0o0010) != 0
 
-    if instr_type == 0:
-        # Skip instruction: condition in bits 2-0
+    if not bit7 and not bit8:
+        # Skip instruction: condition in bits 9-11
         condition = word & 0o0007
         skip_ops = {
             0o01: "SNZ",  # Skip if Non-Zero
@@ -244,11 +259,11 @@ def decode_group2(word):
         }
         if condition in skip_ops:
             return skip_ops[condition], reg
-    elif instr_type == 1:
+    elif not bit7 and bit8:
         return "CLR", reg
-    elif instr_type == 2:
+    elif bit7 and not bit8:
         return "CMP", reg
-    elif instr_type == 3:
+    elif bit7 and bit8:
         return "SET", reg
 
     return None, None
