@@ -47,8 +47,7 @@
         ROTD    JK,11                   / 1371
         ROTD    JK,12                   / 1372
         ROTD    JK,13                   / 1373
-        ROTD    JK,14                   / 1374
         ROTD    JK,15                   / 1375
         ROTD    JK,16                   / 1376
         ROTD    JK,17                   / 1377
-/ checksum: 6630
+/ checksum: 0224

@@ -86,7 +86,7 @@ EXACT = {
     0o1007: "IONN",
     0o1010: "LJSW",
     0o1011: "LJST",
-    0o1101: "LRF",
+    0o1101: "LRFJ",
     0o1102: "LJFR",
     0o1103: "EXJR",
     0o1201: "LSFK",
@@ -230,6 +230,10 @@ def decode_two_word(words, i, origin):
 
 def decode_instruction(word, pc):
     """Decode a single instruction word and return (mnemonic, operand, comment)."""
+    # Check EXACT matches first (highest priority)
+    if word in EXACT:
+        return EXACT[word], "", ""
+
     if (0o7400 & word) == 0o1400:
         decode_group2(word)
     elif (0o7400 & word) == 0o1000:
@@ -240,9 +244,6 @@ def decode_instruction(word, pc):
         decode_two_word(None, 0, 0)
     else:
         decode_single_word(word)
-
-    if word in EXACT:
-        return EXACT[word], "", ""
 
     mnem, operand = decode_literal(word)
     if mnem:
