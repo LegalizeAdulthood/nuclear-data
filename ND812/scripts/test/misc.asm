@@ -1,4 +1,4 @@
-/ stop.bin
+/ misc.bin
 /
 / record 1
 / file offset: 0x0
