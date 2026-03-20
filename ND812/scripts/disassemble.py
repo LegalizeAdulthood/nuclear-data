@@ -273,6 +273,7 @@ def decode_group2(word):
         if condition == 0o04:
             return "INC", reg
         skip_ops = {
+            0o00: "SKPL",  # Skip on Power Low
             0o01: "SNZ",  # Skip if Non-Zero
             0o02: "SIP",  # Skip if Positive
             0o05: "SIZ",  # Skip if Zero
