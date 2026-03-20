@@ -268,8 +268,10 @@ def decode_group2(word):
     bit8 = (word & 0o0010) != 0
 
     if not bit7 and not bit8:
-        # Skip instruction: condition in bits 9-11
+        # Skip instruction or INC: condition in bits 9-11
         condition = word & 0o0007
+        if condition == 0o04:
+            return "INC", reg
         skip_ops = {
             0o01: "SNZ",  # Skip if Non-Zero
             0o02: "SIP",  # Skip if Positive
@@ -281,6 +283,10 @@ def decode_group2(word):
     elif not bit7 and bit8:
         return "CLR", reg
     elif bit7 and not bit8:
+        # NEG or CMP
+        condition = word & 0o0007
+        if condition == 0o04:
+            return "NEG", reg
         return "CMP", reg
     elif bit7 and bit8:
         return "SET", reg
