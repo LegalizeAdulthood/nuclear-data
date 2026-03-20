@@ -5,5 +5,5 @@
         *0000
         PION                            / 1500
         PIOF                            / 1600
-        SKPL    O                       / 1440
+        SKPL                            / 1440
 / checksum: 3040

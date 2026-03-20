@@ -101,6 +101,8 @@ EXACT = {
     0o1410: "CLR",
     0o1420: "CMP",
     0o1430: "SET",
+    0o1440: "SKPL",
+    0o1442: "SKIP",
     0o1500: "PION",
     0o1600: "PIOF",
     0o7401: "TIF",
