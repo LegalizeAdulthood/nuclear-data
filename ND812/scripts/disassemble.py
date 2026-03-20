@@ -176,9 +176,15 @@ def decode_group1(word):
         0o1020: ("AJK", True),
         0o1021: ("SJK", True),
         0o1022: ("ADR", False),
+        0o1023: ("SBR", False),
+        0o1024: ("ADS", False),
+        0o1025: ("SBS", False),
         0o1030: ("NAJK", True),
         0o1031: ("NSJK", True),
         0o1032: ("NADR", False),
+        0o1033: ("NSBR", False),
+        0o1034: ("NADS", False),
+        0o1035: ("NSBS", False),
     }
 
     if base not in group1_ops:
