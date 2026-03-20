@@ -168,6 +168,13 @@ def decode_group1(word):
     if not (k or j):
         return None, None
 
+    reg = ""
+    if j:
+        reg += "J"
+    if k:
+        reg += "K"
+
+    # Non-shift instructions
     negate = (word & 0o0010) != 0
     base = word & 0o7467  # mask out J/K select and negate bits
 
@@ -182,23 +189,30 @@ def decode_group1(word):
         0o1025: ("SBS", False),
     }
 
-    if base not in group1_ops:
-        return None, None
+    if base in group1_ops:
+        mnem, has_jk = group1_ops[base]
+        if j and k and not has_jk:
+            return None, None
+        if negate:
+            mnem = "N" + mnem
+        return mnem, reg
 
-    mnem, has_jk = group1_ops[base]
+    # Shift instructions: shift count in bits 8-11 (low 4 bits)
+    shift_base = word & 0o7460  # mask out J/K and shift count
+    shift_count = word & 0o0017
 
-    if j and k and not has_jk:
-        return None, None
+    # (mnemonic, has_jk_form)
+    group1_shift_ops = {
+        0o1040: ("SFTZ", True),
+    }
 
-    if negate:
-        mnem = "N" + mnem
+    if shift_base in group1_shift_ops:
+        mnem, has_jk = group1_shift_ops[shift_base]
+        if j and k and not has_jk:
+            return None, None
+        return mnem, "%s,%o" % (reg, shift_count)
 
-    reg = ""
-    if j:
-        reg += "J"
-    if k:
-        reg += "K"
-    return mnem, reg
+    return None, None
 
 
 def decode_group2(word):
