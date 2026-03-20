@@ -162,7 +162,18 @@ def decode_relative(word, pc):
 
 
 def decode_group1(word):
-    pass
+    k = (word & 0o0200) != 0
+    j = (word & 0o0100) != 0
+
+    if (word & 0o7477) == 0o1000 and (k or j):
+        reg = ""
+        if j:
+            reg += "J"
+        if k:
+            reg += "K"
+        return "AND", reg
+
+    return None, None
 
 
 def decode_group2(word):
@@ -182,7 +193,9 @@ def decode_instruction(word, pc):
     if (0o7400 & word) == 0o1400:
         decode_group2(word)
     elif (0o7400 & word) == 0o1000:
-        decode_group1(word)
+        mnem, operand = decode_group1(word)
+        if mnem:
+            return mnem, operand, ""
     elif (0o7000 & word) == 0:
         decode_two_word(None, 0, 0)
     else:
