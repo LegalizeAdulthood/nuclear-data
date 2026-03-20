@@ -228,14 +228,14 @@ def decode_group2(word):
         01: CLR (bit 8 set)
         10: CMP (bit 7 set)
         11: SET (both bits 7 and 8 set)
+
+    If no register bits are set, the flag bit is implied (no operand output).
     """
     k = (word & 0o0200) != 0
     j = (word & 0o0100) != 0
     o = (word & 0o0040) != 0
 
-    if not (k or j or o):
-        return None, None
-
+    # Build register operand string (empty string if flag bit)
     reg = ""
     if j:
         reg += "J"
@@ -243,6 +243,25 @@ def decode_group2(word):
         reg += "K"
     if o:
         reg += "O"
+
+    # If no register bits are set, it's a flag bit operation
+    # Only handle skip instructions here (CLR/CMP/SET are in EXACT table)
+    if not (k or j or o):
+        # Check operation type in bits 7-8
+        bit7 = (word & 0o0020) != 0
+        bit8 = (word & 0o0010) != 0
+
+        if not bit7 and not bit8:
+            # Skip instruction on flag bit: condition in bits 9-11
+            condition = word & 0o0007
+            skip_ops = {
+                0o01: "SNZ",  # Skip if Non-Zero
+                0o05: "SIZ",  # Skip if Zero
+            }
+            if condition in skip_ops:
+                return skip_ops[condition], ""
+
+        return None, None
 
     # Check operation type in bits 7-8
     bit7 = (word & 0o0020) != 0
