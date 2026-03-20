@@ -178,6 +178,7 @@ def decode_group1(word):
         0o1022: ("ADR", False),
         0o1030: ("NAJK", True),
         0o1031: ("NSJK", True),
+        0o1032: ("NADR", False),
     }
 
     if base not in group1_ops:
