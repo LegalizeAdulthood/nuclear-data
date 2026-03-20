@@ -221,7 +221,7 @@ def format_line(label="", mnemonic="", operand="", comment=""):
     Columns 1-8:   label (followed by comma if present)
     Columns 9-16:  mnemonic
     Columns 17+:   operand
-    Column 40+:    comment (prefixed with /)
+    Column 41+:    comment (prefixed with /)
     """
     if label:
         label = label + ","
@@ -232,11 +232,11 @@ def format_line(label="", mnemonic="", operand="", comment=""):
     if comment:
         if operand:
             line = f"{label_field}{mnem_field}{operand}"
-            line = line.ljust(39) + "/" + comment
+            line = line.ljust(40) + "/" + comment
         else:
             line = f"{label_field}{mnem_field}"
             if line.rstrip():
-                line = line.ljust(39) + "/" + comment
+                line = line.ljust(40) + "/" + comment
             else:
                 line = "/" + comment
     else:
