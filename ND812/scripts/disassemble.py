@@ -217,7 +217,33 @@ def decode_group1(word):
 
 
 def decode_group2(word):
-    pass
+    """Decode Group 2 instructions (skip instructions)."""
+    k = (word & 0o0200) != 0
+    j = (word & 0o0100) != 0
+
+    if not (k or j):
+        return None, None
+
+    reg = ""
+    if j:
+        reg += "J"
+    if k:
+        reg += "K"
+
+    # Skip condition in bits 2-0
+    condition = word & 0o0007
+
+    skip_ops = {
+        0o01: "SNZ",  # Skip if Non-Zero
+        0o02: "SIP",  # Skip if Positive
+        0o05: "SIZ",  # Skip if Zero
+        0o06: "SIN",  # Skip if Negative
+    }
+
+    if condition in skip_ops:
+        return skip_ops[condition], reg
+
+    return None, None
 
 
 def decode_single_word(word):
@@ -235,7 +261,9 @@ def decode_instruction(word, pc):
         return EXACT[word], "", ""
 
     if (0o7400 & word) == 0o1400:
-        decode_group2(word)
+        mnem, operand = decode_group2(word)
+        if mnem:
+            return mnem, operand, ""
     elif (0o7400 & word) == 0o1000:
         mnem, operand = decode_group1(word)
         if mnem:
