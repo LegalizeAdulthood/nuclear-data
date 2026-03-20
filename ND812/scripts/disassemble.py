@@ -204,6 +204,7 @@ def decode_group1(word):
     # (mnemonic, has_jk_form)
     group1_shift_ops = {
         0o1040: ("SFTZ", True),
+        0o1060: ("ROTD", True),
     }
 
     if shift_base in group1_shift_ops:
