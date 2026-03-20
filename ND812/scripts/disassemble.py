@@ -119,9 +119,30 @@ EXACT = {
     0o7432: "HOL",
     0o7433: "HLP",
     0o7434: "HOS",
+    0o7601: "CSLCT1",
+    0o7602: "CSLCT2",
+    0o7603: "CSLCT3",
     0o7720: "LDREG",  # Load JPS from J, INT from K
     0o7721: "LDJK",   # Load J from JPS, K from INT
     0o7722: "RJIB",   # Set JPS and INT status
+}
+
+# Two-word cassette tape operations (second word after TWIO 0o0740)
+CASSETTE_OPS = {
+    0o0101: "CHSF",
+    0o0102: "CSPF",
+    0o0104: "CSFM",
+    0o0110: "CSET",
+    0o0121: "CHSR",
+    0o0122: "CSNE",
+    0o0124: "CSTR",
+    0o0130: "CSBT",
+    0o0141: "CCLF",
+    0o0142: "CSRR",
+    0o0144: "CRDT",
+    0o0151: "CWFM",
+    0o0152: "CSWR",
+    0o0154: "CWRT",
 }
 
 
@@ -314,8 +335,18 @@ def decode_single_word(word):
     pass
 
 
-def decode_two_word(words, i, origin):
-    pass
+def decode_two_word(word1, word2):
+    """Decode a two-word instruction.
+
+    For cassette tape instructions:
+    word1 should be TWIO (0o0740)
+    word2 encodes the specific cassette operation
+    """
+    if word1 == 0o0740:  # TWIO
+        if word2 in CASSETTE_OPS:
+            return CASSETTE_OPS[word2], "", ""
+
+    return None, None, None
 
 
 def decode_instruction(word, pc):
@@ -489,16 +520,76 @@ def process_tape_stream(data, filename):
             checksum = (checksum + word) & 0xFFF
             pos += 2
 
-            # Disassemble and output immediately
-            mnem, operand, comment = decode_instruction(word, pc)
-            if comment:
-                full_comment = " " + comment
-            else:
-                raw_comment = "%04o" % word
-                full_comment = " " + raw_comment
-            print(format_line(mnemonic=mnem, operand=operand, comment=full_comment))
+            # Check if this is a two-word instruction (TWIO prefix)
+            if word == 0o0740:  # TWIO
+                # Read second word
+                if pos >= len(data):
+                    print(format_comment(" ERROR: truncated TWIO instruction"))
+                    break
 
-            pc = (pc + 1) & 0o7777
+                b3 = data[pos]
+                if (b3 & 0x40):  # Marked byte - not a valid second word
+                    print(format_comment(" ERROR: TWIO not followed by data word"))
+                    mnem, operand, comment = decode_instruction(word, pc)
+                    if comment:
+                        full_comment = " " + comment
+                    else:
+                        raw_comment = "%04o" % word
+                        full_comment = " " + raw_comment
+                    print(format_line(mnemonic=mnem, operand=operand, comment=full_comment))
+                    pc = (pc + 1) & 0o7777
+                    continue
+
+                if 0x84 <= b3 <= 0x87:  # Field change - not a valid second word
+                    print(format_comment(" ERROR: TWIO not followed by data word"))
+                    mnem, operand, comment = decode_instruction(word, pc)
+                    if comment:
+                        full_comment = " " + comment
+                    else:
+                        raw_comment = "%04o" % word
+                        full_comment = " " + raw_comment
+                    print(format_line(mnemonic=mnem, operand=operand, comment=full_comment))
+                    pc = (pc + 1) & 0o7777
+                    continue
+
+                if pos + 1 >= len(data):
+                    print(format_comment(" ERROR: truncated TWIO second word"))
+                    break
+
+                b4 = data[pos + 1]
+                if (b4 & 0x80):
+                    print(format_comment(" ERROR: Corrupted TWIO second word byte: 0x%02x at position %d" % (b4, pos)))
+                    pos += 2
+                    continue
+
+                word2 = form_word(b3, b4)
+                checksum = (checksum + word2) & 0xFFF
+                pos += 2
+
+                # Decode two-word instruction
+                mnem, operand, comment = decode_two_word(word, word2)
+                if mnem:
+                    raw_comment = "%04o %04o" % (word, word2)
+                    full_comment = " " + raw_comment
+                    print(format_line(mnemonic=mnem, operand=operand, comment=full_comment))
+                    pc = (pc + 2) & 0o7777
+                else:
+                    # Unknown two-word instruction
+                    raw_comment = "%04o %04o" % (word, word2)
+                    full_comment = " " + raw_comment
+                    print(format_line(mnemonic="%04o" % word, operand="", comment=full_comment))
+                    pc = (pc + 2) & 0o7777
+            else:
+                # Single-word instruction - disassemble and output immediately
+                mnem, operand, comment = decode_instruction(word, pc)
+                if comment:
+                    full_comment = " " + comment
+                else:
+                    raw_comment = "%04o" % word
+                    full_comment = " " + raw_comment
+                print(format_line(mnemonic=mnem, operand=operand, comment=full_comment))
+
+                pc = (pc + 1) & 0o7777
 
         # Output checksum information
         if tape_checksum is None:
