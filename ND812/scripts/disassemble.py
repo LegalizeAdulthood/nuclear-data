@@ -175,6 +175,7 @@ def decode_group1(word):
         0o1020: "AJK",
         0o1021: "SJK",
         0o1030: "NAJK",
+        0o1031: "NSJK",
     }
 
     if base not in group1_ops:
