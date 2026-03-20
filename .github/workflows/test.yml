@@ -24,6 +24,5 @@ jobs:
         cd ND812/scripts/test
         for bin_file in *.bin; do
           test_name="${bin_file%.bin}"
-          echo "Running test: $test_name"
           python3 run-test.py "$test_name" || exit 1
         done
