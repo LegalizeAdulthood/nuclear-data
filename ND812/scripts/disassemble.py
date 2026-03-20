@@ -130,6 +130,7 @@ def decode_relative(word, pc):
     table = {
         4: "ANDF",   # 0o20xx
         6: "DSZ",    # 0o30xx
+        7: "ISZ",    # 0o34xx
         8: "SBJ",    # 0o40xx
         9: "ADJ",    # 0o44xx
         10: "LDJ",   # 0o50xx
