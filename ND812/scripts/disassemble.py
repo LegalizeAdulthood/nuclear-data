@@ -217,7 +217,7 @@ def decode_group1(word):
 
 
 def decode_group2(word):
-    """Decode Group 2 instructions (skip instructions)."""
+    """Decode Group 2 instructions (skip instructions and clear/complement/set)."""
     k = (word & 0o0200) != 0
     j = (word & 0o0100) != 0
 
@@ -230,18 +230,26 @@ def decode_group2(word):
     if k:
         reg += "K"
 
-    # Skip condition in bits 2-0
-    condition = word & 0o0007
+    # Instruction type in bits 4-3
+    instr_type = (word >> 3) & 0o3
 
-    skip_ops = {
-        0o01: "SNZ",  # Skip if Non-Zero
-        0o02: "SIP",  # Skip if Positive
-        0o05: "SIZ",  # Skip if Zero
-        0o06: "SIN",  # Skip if Negative
-    }
-
-    if condition in skip_ops:
-        return skip_ops[condition], reg
+    if instr_type == 0:
+        # Skip instruction: condition in bits 2-0
+        condition = word & 0o0007
+        skip_ops = {
+            0o01: "SNZ",  # Skip if Non-Zero
+            0o02: "SIP",  # Skip if Positive
+            0o05: "SIZ",  # Skip if Zero
+            0o06: "SIN",  # Skip if Negative
+        }
+        if condition in skip_ops:
+            return skip_ops[condition], reg
+    elif instr_type == 1:
+        return "CLR", reg
+    elif instr_type == 2:
+        return "CMP", reg
+    elif instr_type == 3:
+        return "SET", reg
 
     return None, None
 
