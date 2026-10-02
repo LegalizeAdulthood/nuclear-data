@@ -1,0 +1,49 @@
+digraph ND812 {
+  // Simplified from Maintenance Manual Figure 1-2 (PDF page 24).
+  graph [rankdir=TB, newrank=true, ordering=out, splines=ortho, nodesep=0.45, ranksep=0.65, bgcolor="white", pad=0.25];
+  node [shape=box, fontname="Arial", fontsize=16, margin="0.16,0.12", color="#555555", penwidth=1.2];
+  edge [color="#555555", arrowsize=0.65, penwidth=1.2];
+  SUM [label="Summing bus"];
+  JK [label="J / K"];
+  RS [label="R / S"];
+  PC [label="PC"];
+  AR [label="AR"];
+  MR [label="MR"];
+  IR [label="IR"];
+  CORE [label="Core memory"];
+  MBR [label="MBR"];
+  MB [label="Bus / MBR\nmultiplexer"];
+  MX [label="MX multiplexer"];
+  TS [label="TS multiplexer"];
+  ALU [label="Adder / logic"];
+  OV [label="OV"];
+
+
+  { rank=same; JK; PC; AR; MB; }
+  { rank=same; RS; IR; MR; MBR; CORE; }
+  { rank=same; MX; TS; }
+  { rank=same; ALU; OV; }
+
+  SUM -> JK;
+  SUM -> PC;
+  SUM -> AR;
+  SUM -> MB;
+  JK -> RS [dir=both];
+  JK -> MX;
+  JK -> TS;
+  RS -> MX;
+  PC -> MX;
+  AR -> MX;
+  AR -> CORE;
+  CORE -> MBR [dir=both];
+  MBR -> MB [constraint=false];
+  MB -> IR;
+  MB -> MR;
+  MR -> CORE;
+  IR -> TS;
+  MR -> TS;
+  MX -> ALU;
+  TS -> ALU;
+  ALU -> OV;
+  ALU -> SUM [constraint=false];
+}
