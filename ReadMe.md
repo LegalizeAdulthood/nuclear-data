@@ -2,7 +2,7 @@
 
 ## [ND130 512 Channel Analyzer](ND130/ND130.md)
 
-## ND600 Multichannel Analyzer
+## [ND600 and ND66 Multichannel Analyzers](ND600/ND600.md)
 
 ## [ND4400 Series Multichannel Analyzer](ND4400/ND4400.md)
 
