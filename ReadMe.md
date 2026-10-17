@@ -9,3 +9,5 @@
 ## [ND6600 Multichannel Analyzer](ND6600/ND6600.md)
 
 ## [ND812 Minicomputer](ND812/ND812.md)
+
+## [Nuclear Instrumentation Modules](NIM/NIM.md)
