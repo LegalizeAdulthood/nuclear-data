@@ -4,6 +4,8 @@
 
 ## [ND600 and ND66 Multichannel Analyzers](ND600/ND600.md)
 
+## [ND3300 Series Multichannel Analyzer](ND3300/ND3300.md)
+
 ## [ND4400 Series Multichannel Analyzer](ND4400/ND4400.md)
 
 ## [ND6600 Multichannel Analyzer](ND6600/ND6600.md)
