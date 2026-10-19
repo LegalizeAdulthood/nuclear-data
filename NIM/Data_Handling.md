@@ -132,9 +132,30 @@ assembly connects to the rest of an analyzer system.
 | `512` / `256` | Two-position selector, possibly related to channel or memory configuration. Its actual function remains unverified. |
 | `DSTR` / `OFF`; `PULSE` / `GATE` | Rear-panel switches. The meaning of `DSTR` and the function of pulse/gate selection require documentation. |
 
-The photographs also show large multipin cable ends with AMP markings.
-Those component markings can help identify mating connector hardware, but
-they do not identify the Nuclear Data signal assignments.
+### Cable-end connectors
+
+The two multipin cable ends use **AMP M Series rectangular pin-and-socket
+connectors**, in different sizes. The listing photographs and
+owner-supplied close-ups dated 18 October 2026 support the following
+identification:
+
+| Cable end | Contact housing | Metal shield / backshell |
+| --- | --- | --- |
+| Smaller blue connector | 20-position receptacle housing, marked **`200346-4`**. | Marked **`201227-2`**; short, straight-exit (180-degree) shield. |
+| Larger black connector | 50-position male cable connector, with four staggered rows of 13, 12, 13 and 12 positions. The close-up appears to show 25 fitted pin contacts. The black phenolic plug housing matches **`201358-1`**, but that exact housing part number remains tentative because the complete molded marking has not been confirmed. | Marked **`201386-2`**; long, straight-exit (180-degree) shield with pin protection. |
+
+The stamped numbers on the metal shields identify the **shields**, not the
+complete connectors or their insulating contact housings. AMP's
+[M Series catalog](https://www.te.com/content/dam/te-com/documents/appliances/global/m-series-datasheet.pdf)
+lists the smaller housing and shield on printed pages 45 and 86, and the
+50-position `201358-1` plug housing on printed page 47. The older
+[1976 AMP Engineering and Purchasing Guide, section 16](https://www.bitsavers.org/components/amp/catalogs/1976_AMP_Engineering_and_Purchasing_Guide/1976_AMP_Engineering_and_Purchasing_Guide_16.pdf)
+lists shield `201386-2` on printed page 16-45.
+
+The different position counts distinguish the two cable-end connectors;
+they are not interchangeable. These hardware identifications do not
+establish the Nuclear Data signal assignments, pinouts or which cable end
+corresponds to each rear-panel interface label.
 
 ## Working interpretation
 
@@ -191,6 +212,12 @@ evidence to assign a model or copy another module's specifications.
 
 * Physical inspection on 18 October 2026: confirmed that this module
   contains no core memory.
+* [AMP M Series pin-and-socket connector catalog](https://www.te.com/content/dam/te-com/documents/appliances/global/m-series-datasheet.pdf),
+  printed pages 45, 47 and 86: housing and shield identifications for the
+  smaller connector and the candidate housing for the larger connector.
+* [1976 AMP Engineering and Purchasing Guide, section 16](https://www.bitsavers.org/components/amp/catalogs/1976_AMP_Engineering_and_Purchasing_Guide/1976_AMP_Engineering_and_Purchasing_Guide_16.pdf),
+  printed page 16-45: shield `201386-2`, with straight cable exit and pin
+  protection.
 * [ND130A instruction manual](../ND130/docs/512_Channel_Analyzer_Model_ND_130A_Instruction_Manual_26-May-1961.pdf),
   describing the analyzer's internal tally computer, arithmetic, digital
   readout and analog display functions.
@@ -213,6 +240,10 @@ evidence to assign a model or copy another module's specifications.
   showing the plug-in boards and numbered positions.
 * [Rear-panel photograph](images/Nuclear%20Data%20Data%20Handling%20137242463917-5.jpg),
   showing the manufacturer, interface names and switches.
+* [Smaller cable-end photograph](images/Nuclear%20Data%20Data%20Handling%20137242463917-6.jpg),
+  showing the `200346-4` housing and `201227-2` shield markings.
+* [Larger cable-end photograph](images/Nuclear%20Data%20Data%20Handling%20137242463917-7.jpg),
+  showing the larger housing, pin contacts and metal shield.
 
 ## Photographs
 
